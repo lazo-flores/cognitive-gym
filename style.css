@@ -38,6 +38,9 @@ select { padding:8px 10px; border-radius:8px; border:1.5px solid var(--gray); fo
 .opts { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:14px; }
 .opts button { font-size:20px; letter-spacing:4px; padding:10px 18px; border:2px solid var(--blue); background:#fff; color:var(--blue); border-radius:10px; cursor:pointer; }
 .opts button:hover { background:var(--blue); color:#fff; }
+.opts button.sel { background:var(--blue); color:#fff; }
+.steprow { margin-top:2px; }
+.steprow button { font-size:17px; padding:7px 14px; letter-spacing:3px; }
 /* digit */
 .equation { display:flex; gap:16px; justify-content:center; align-items:center; font-size:36px; margin:14px 0; flex-wrap:wrap; }
 .numgroup { display:flex; gap:3px; align-items:center; border-bottom:3px solid #d5dee5; padding-bottom:4px; }

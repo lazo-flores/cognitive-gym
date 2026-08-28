@@ -176,42 +176,69 @@ function randCode(n) {
 const SwitchGame = {
   name: "Switch", maxLevel: 4,
   item(run) {
-    const layers = run.level;               // 1..4 transformation layers
+    // level config: number of chained steps and options offered per step.
+    // Intermediate symbol rows are NOT shown (as in the real test): you pick
+    // one code per step so the whole chain maps the top row to the final row.
+    const cfg = [{ steps: 1, opts: 4 }, { steps: 2, opts: 2 },
+                 { steps: 3, opts: 2 }, { steps: 3, opts: 3 }][run.level - 1];
     const n = 4;
     const syms = shuffle(SYMS).slice(0, n);
-    const rows = [syms];
-    const codes = [];
-    for (let i = 0; i < layers; i++) {
-      const c = randCode(n);
-      codes.push(c);
-      rows.push(applyCode(rows[i], c));
-    }
-    const hidden = rint(layers);
-    const answer = codes[hidden].join("");
-    const t0 = Date.now();
 
-    let html = "";
-    rows.forEach((row, i) => {
-      html += `<div class="symrow">${row.map(s => `<div class="slot">${s}</div>`).join("")}</div>`;
-      if (i < layers) {
-        const shownCode = i === hidden ? `<span class="unknown">? ? ? ?</span>` : `<b>${codes[i].join(" ")}</b>`;
-        html += `<div class="codebetween">&darr; &nbsp;${shownCode}&nbsp; &darr;</div>`;
-      }
+    const countSolutions = (optionSets, final) => {
+      let count = 0;
+      const rec = (i, row) => {
+        if (count > 1) return;
+        if (i === optionSets.length) { if (row.join("") === final.join("")) count++; return; }
+        for (const code of optionSets[i])
+          rec(i + 1, applyCode(row, code.split("").map(Number)));
+      };
+      rec(0, syms);
+      return count;
+    };
+
+    let truth, final, optionSets;
+    for (let guard = 0; guard < 200; guard++) {
+      truth = [...Array(cfg.steps)].map(() => randCode(n));
+      final = truth.reduce((row, c) => applyCode(row, c), syms);
+      optionSets = truth.map(c => {
+        const set = new Set([c.join("")]);
+        while (set.size < cfg.opts) set.add(randCode(n).join(""));
+        return shuffle([...set]);
+      });
+      if (countSolutions(optionSets, final) === 1) break;
+    }
+    const t0 = Date.now();
+    const chosen = Array(cfg.steps).fill(null);
+
+    let html = `<div class="symrow">${syms.map(s => `<div class="slot">${s}</div>`).join("")}</div>`;
+    optionSets.forEach((opts, s) => {
+      html += `<div class="codebetween">&darr; step ${s + 1}: pick the code &darr;</div>
+        <div class="opts steprow" data-step="${s}">${opts.map(o =>
+          `<button data-code="${o}">${o}</button>`).join("")}</div>`;
     });
-    const opts = new Set([answer]);
-    while (opts.size < 4) opts.add(randCode(n).join(""));
-    html += `<div class="opts">${shuffle([...opts]).map(o =>
-      `<button data-code="${o}">${o}</button>`).join("")}</div>`;
-    html += `<p class="small center">Each code reads left to right: the digit says which position
-      in the row ABOVE the symbol came from. Find the missing code.</p>`;
+    html += `<div class="codebetween">&darr; result &darr;</div>
+      <div class="symrow">${final.map(s => `<div class="slot">${s}</div>`).join("")}</div>
+      <p class="small center">Each code reads left to right: the digit says which position in the
+      row above the symbol came from. The intermediate rows are hidden: choose one code per step so
+      the whole chain produces the result row.</p>`;
     $("arena").innerHTML = html;
-    $("arena").querySelectorAll("button[data-code]").forEach(b => b.onclick = () => {
-      const given = b.dataset.code;
-      const ok = given === answer;
-      run.record({ question: rows.map(r => r.join("")).join(" -> ") + ` (layer ${hidden + 1} hidden)`,
-                   expected: answer, given, correct: ok, ms: Date.now() - t0, points: layers });
-      run.feedback(ok ? "Correct" : "Wrong: the code was " + answer, ok);
-      run.next(ok ? 700 : 1400);
+
+    $("arena").querySelectorAll(".steprow button").forEach(b => b.onclick = () => {
+      const stepEl = b.closest(".steprow");
+      const s = Number(stepEl.dataset.step);
+      stepEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
+      b.classList.add("sel");
+      chosen[s] = b.dataset.code;
+      if (chosen.every(c => c !== null)) {
+        const got = chosen.reduce((row, c) => applyCode(row, c.split("").map(Number)), syms);
+        const ok = got.join("") === final.join("");
+        const expected = truth.map(c => c.join("")).join("+");
+        run.record({ question: `${syms.join("")} -> ${final.join("")} (${cfg.steps} steps, ${cfg.opts} options)` ,
+                     expected, given: chosen.join("+"), correct: ok,
+                     ms: Date.now() - t0, points: cfg.steps });
+        run.feedback(ok ? "Correct" : "Wrong: the chain was " + expected, ok);
+        run.next(ok ? 800 : 1800);
+      }
     });
   },
 };
