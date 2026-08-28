@@ -61,6 +61,7 @@ select { padding:8px 10px; border-radius:8px; border:1.5px solid var(--gray); fo
 .canvas { position:relative; height:360px; background:#fff; border:1.5px solid #dde5ea; border-radius:12px; margin:8px 0; }
 .dot { position:absolute; width:44px; height:44px; border-radius:50%; transform:translate(-50%,-50%); }
 .dot.show { background:var(--blue); }
+.dot.empty { background:#fff; border:2.5px solid #dde5ea; }
 .dot.pick { background:#fff; border:2.5px solid var(--gray); cursor:pointer; }
 .dot.pick:hover { border-color:var(--blue); }
 .dot.picked { background:#bcd8ef; border-color:var(--blue); color:var(--blue); font-weight:700; display:flex; align-items:center; justify-content:center; }

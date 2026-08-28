@@ -449,11 +449,21 @@ const MemoryGame = {
       return d;
     })();
     let distractorScore = 0, distractorCount = 0;
+    // the full board (targets + decoys) is visible from the start; one circle
+    // lights up at a time, giving relative spatial anchors, as in real tests
+    const board = shuffle(seq.map((p, i) => ({ ...p, real: i }))
+      .concat(decoys.map(p => ({ ...p, real: -1 }))));
+    const boardHtml = (litReal, clickable) => `<div class="canvas">` +
+      board.map((p, i) => {
+        const cls = p.real === litReal ? "dot show"
+          : clickable ? "dot pick" : "dot empty";
+        return `<div class="${cls}" data-i="${i}" style="left:${p.x}px; top:${p.y}px"></div>`;
+      }).join("") + `</div>`;
 
     const showDot = i => {
       if (run.finished) return;
-      $("arena").innerHTML = `<p class="small center">Memorize position ${i + 1} of ${dots}</p>
-        <div class="canvas"><div class="dot show" style="left:${seq[i].x}px; top:${seq[i].y}px"></div></div>`;
+      $("arena").innerHTML = `<p class="small center">Memorize position ${i + 1} of ${dots}</p>` +
+        boardHtml(i, false);
       run.later(() => (i + 1 < dots ? distractor(() => showDot(i + 1)) : distractor(recall)), 1150);
     };
 
@@ -497,17 +507,14 @@ const MemoryGame = {
 
     const recall = () => {
       if (run.finished) return;
-      const candidates = shuffle(seq.map((p, i) => ({ ...p, real: i }))
-        .concat(decoys.map(p => ({ ...p, real: -1 }))));
       const picked = [];
-      $("arena").innerHTML = `<p class="small center">Click the memorized positions in order (${dots})</p>
-        <div class="canvas">${candidates.map((p, i) =>
-          `<div class="dot pick" data-i="${i}" style="left:${p.x}px; top:${p.y}px"></div>`).join("")}</div>`;
+      $("arena").innerHTML = `<p class="small center">Click the positions that lit up, in order (${dots})</p>` +
+        boardHtml(-2, true);
       $("arena").querySelectorAll(".dot.pick").forEach(d => d.onclick = () => {
         if (d.classList.contains("picked")) return;
         d.classList.remove("pick");
         d.classList.add("picked");
-        picked.push(candidates[Number(d.dataset.i)]);
+        picked.push(board[Number(d.dataset.i)]);
         d.textContent = picked.length;
         if (picked.length === dots) {
           const ok = picked.every((p, i) => p.real === i);
