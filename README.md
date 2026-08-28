@@ -4,7 +4,7 @@ Free, browser-based practice for gamified cognitive assessments: deductive-logic
 switch puzzles, timed mental-arithmetic digit puzzles, and dual-task spatial
 memory exercises.
 
-**Practice here: https://lazo-flores.github.io/cognitive-gym/**
+**Practice here: https://www.joselazoflores.com/cognitive-gym/**
 
 Many employers screen candidates with short, game-like cognitive tests. The
 formats are learnable, but most practice material sits behind paywalls, and
