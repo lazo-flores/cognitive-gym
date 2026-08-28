@@ -41,6 +41,11 @@ select { padding:8px 10px; border-radius:8px; border:1.5px solid var(--gray); fo
 .opts button.sel { background:var(--blue); color:#fff; }
 .steprow { margin-top:2px; }
 .steprow button { font-size:17px; padding:7px 14px; letter-spacing:3px; }
+.switchflow { position:relative; }
+.switchflow > * { position:relative; }
+.switchflow .flow-svg { position:absolute; inset:0; z-index:0; pointer-events:none; }
+.flow-line { fill:none; stroke:#c9d6df; stroke-width:2; }
+.flow-line.sel { stroke:var(--blue); stroke-width:3.5; }
 /* digit */
 .equation { display:flex; gap:16px; justify-content:center; align-items:center; font-size:36px; margin:14px 0; flex-wrap:wrap; }
 .numgroup { display:flex; gap:3px; align-items:center; border-bottom:3px solid #d5dee5; padding-bottom:4px; }

@@ -210,18 +210,66 @@ const SwitchGame = {
     const t0 = Date.now();
     const chosen = Array(cfg.steps).fill(null);
 
-    let html = `<div class="symrow">${syms.map(s => `<div class="slot">${s}</div>`).join("")}</div>`;
+    let html = `<div class="switchflow" id="switchflow">
+      <svg class="flow-svg" id="flow-svg"></svg>
+      <div class="symrow" data-node="top">${syms.map(s => `<div class="slot">${s}</div>`).join("")}</div>`;
     optionSets.forEach((opts, s) => {
-      html += `<div class="codebetween">&darr; step ${s + 1}: pick the code &darr;</div>
+      html += `<div class="codebetween">step ${s + 1}: pick the code</div>
         <div class="opts steprow" data-step="${s}">${opts.map(o =>
           `<button data-code="${o}">${o}</button>`).join("")}</div>`;
     });
-    html += `<div class="codebetween">&darr; result &darr;</div>
-      <div class="symrow">${final.map(s => `<div class="slot">${s}</div>`).join("")}</div>
+    html += `<div class="codebetween">result</div>
+      <div class="symrow" data-node="final">${final.map(s => `<div class="slot">${s}</div>`).join("")}</div>
+      </div>
       <p class="small center">Each code reads left to right: the digit says which position in the
       row above the symbol came from. The intermediate rows are hidden: choose one code per step so
       the whole chain produces the result row.</p>`;
     $("arena").innerHTML = html;
+
+    const drawFlow = () => {
+      const wrap = $("switchflow");
+      const svg = $("flow-svg");
+      if (!wrap || !svg) return;
+      const wr = wrap.getBoundingClientRect();
+      svg.setAttribute("width", wr.width);
+      svg.setAttribute("height", wr.height);
+      const rel = el => {
+        const r = el.getBoundingClientRect();
+        return { top: { x: r.left - wr.left + r.width / 2, y: r.top - wr.top },
+                 bot: { x: r.left - wr.left + r.width / 2, y: r.bottom - wr.top } };
+      };
+      const topRow = rel(wrap.querySelector('[data-node="top"]'));
+      const finalRow = rel(wrap.querySelector('[data-node="final"]'));
+      const steps = [...wrap.querySelectorAll(".steprow")].map(sr =>
+        [...sr.querySelectorAll("button")].map(b => ({ el: b, ...rel(b) })));
+      // junction nodes between layers
+      const nodes = [topRow.bot];
+      steps.forEach((opts, i) => {
+        if (i < steps.length - 1) {
+          const yMid = (Math.max(...opts.map(o => o.bot.y)) +
+                        Math.min(...steps[i + 1].map(o => o.top.y))) / 2;
+          nodes.push({ x: wr.width / 2, y: yMid });
+        } else nodes.push({ x: finalRow.top.x, y: finalRow.top.y });
+      });
+      const curve = (a, b) => {
+        const my = (a.y + b.y) / 2;
+        return `M ${a.x} ${a.y} C ${a.x} ${my}, ${b.x} ${my}, ${b.x} ${b.y}`;
+      };
+      let paths = "";
+      steps.forEach((opts, s) => {
+        opts.forEach(o => {
+          const sel = o.el.classList.contains("sel");
+          const cls = sel ? "flow-line sel" : "flow-line";
+          paths += `<path class="${cls}" d="${curve(nodes[s], o.top)}"></path>`;
+          paths += `<path class="${cls}" d="${curve(o.bot, nodes[s + 1])}"></path>`;
+        });
+      });
+      svg.innerHTML = paths;
+      // selected lines on top
+      [...svg.querySelectorAll(".flow-line.sel")].forEach(el => svg.appendChild(el));
+    };
+    drawFlow();
+    window.onresize = () => { if (!run.finished) drawFlow(); };
 
     $("arena").querySelectorAll(".steprow button").forEach(b => b.onclick = () => {
       const stepEl = b.closest(".steprow");
@@ -229,6 +277,7 @@ const SwitchGame = {
       stepEl.querySelectorAll("button").forEach(x => x.classList.remove("sel"));
       b.classList.add("sel");
       chosen[s] = b.dataset.code;
+      drawFlow();
       if (chosen.every(c => c !== null)) {
         const got = chosen.reduce((row, c) => applyCode(row, c.split("").map(Number)), syms);
         const ok = got.join("") === final.join("");
