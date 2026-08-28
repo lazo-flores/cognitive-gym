@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gamified Assessment Practice</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --blue:#006EBE; --dark:#2b2b2b; --bg:#f0f4f6; --ok:#1a9e5c; --bad:#d94040; }
+  * { box-sizing:border-box; margin:0; padding:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }
+  body { background:var(--bg); color:var(--dark); min-height:100vh; }
+  header { background:var(--blue); color:#fff; padding:14px 24px; display:flex; gap:18px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:19px; margin-right:12px; }
+  header button { background:rgba(255,255,255,.15); color:#fff; border:1px solid rgba(255,255,255,.5); border-radius:8px; padding:8px 16px; font-size:15px; cursor:pointer; }
+  header button.active, header button:hover { background:#fff; color:var(--blue); }
+  main { max-width:860px; margin:26px auto; padding:0 16px; }
+  .card { background:#fff; border-radius:14px; padding:26px; box-shadow:0 2px 10px rgba(0,0,0,.07); margin-bottom:18px; }
+  h2 { color:var(--blue); margin-bottom:10px; }
+  p.small { color:#666; font-size:14px; line-height:1.5; margin:6px 0; }
+  .statusbar { display:flex; gap:22px; font-size:15px; margin:14px 0; color:#444; }
+  .statusbar b { color:var(--blue); }
+  .timerwrap { height:8px; background:#e3e9ee; border-radius:4px; overflow:hidden; margin:10px 0 18px; }
+  .timerbar { height:100%; background:var(--blue); width:100%; transition:width .1s linear; }
+  .go, button.go { background:var(--blue); color:#fff; border:none; border-radius:10px; padding:12px 26px; font-size:17px; cursor:pointer; }
+  .feedback { font-size:17px; font-weight:600; min-height:26px; margin-top:12px; }
+  .feedback.ok { color:var(--ok); } .feedback.bad { color:var(--bad); }
+  /* switch */
+  .symrow { display:flex; gap:14px; justify-content:center; font-size:44px; margin:10px 0; }
+  .symrow .slot { width:64px; height:64px; display:flex; align-items:center; justify-content:center; background:#f4f7f9; border-radius:10px; }
+  .opts { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:18px; }
+  .opts button { font-size:22px; letter-spacing:4px; padding:12px 20px; border:2px solid var(--blue); background:#fff; color:var(--blue); border-radius:10px; cursor:pointer; }
+  .opts button:hover { background:var(--blue); color:#fff; }
+  .arrowdown { text-align:center; font-size:26px; color:#999; }
+  /* digit */
+  .equation { display:flex; gap:18px; justify-content:center; align-items:center; font-size:38px; margin:16px 0; flex-wrap:wrap; }
+  .numgroup { display:flex; gap:3px; align-items:center; border-bottom:3px solid #d5dee5; padding-bottom:4px; }
+  .dslot { width:58px; height:58px; border:2.5px dashed #b6c4cf; border-radius:10px; display:flex; align-items:center; justify-content:center; background:#f8fafc; }
+  .dslot.cur { border-color:var(--blue); background:#eaf3fb; }
+  .dslot.filled { border-style:solid; border-color:var(--blue); color:var(--blue); font-weight:700; }
+  .digitpad { display:flex; gap:10px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+  .digitpad button { width:52px; height:52px; font-size:22px; border:2px solid var(--blue); border-radius:10px; background:#fff; color:var(--blue); cursor:pointer; }
+  .digitpad button:disabled { opacity:.25; cursor:default; }
+  .digitpad button.util { width:auto; padding:0 14px; font-size:15px; }
+  /* grid */
+  .ggrid { display:grid; gap:6px; justify-content:center; margin:14px auto; }
+  .gcell { width:56px; height:56px; background:#e8eef3; border-radius:8px; cursor:pointer; }
+  .gcell.dot { background:var(--blue); }
+  .gcell.picked { outline:3px solid var(--blue); background:#bcd8ef; }
+  .minigrids { display:flex; gap:34px; justify-content:center; align-items:center; flex-wrap:wrap; }
+  .mgrid { display:grid; gap:4px; }
+  .mcell { width:34px; height:34px; background:#e8eef3; border-radius:5px; }
+  .mcell.on { background:var(--dark); }
+  .yn { display:flex; gap:16px; justify-content:center; margin-top:18px; }
+  .yn button { font-size:17px; padding:12px 34px; border:2px solid var(--blue); border-radius:10px; background:#fff; color:var(--blue); cursor:pointer; }
+  .hidden { display:none; }
+  .summary td { padding:6px 14px; font-size:16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Assessment Practice</h1>
+  <button data-tab="home" class="active">Home</button>
+  <button data-tab="switch">Switch</button>
+  <button data-tab="digit">Digit</button>
+  <button data-tab="grid">Grid</button>
+  <span style="margin-left:auto; display:flex; gap:8px; align-items:center">
+    <span id="logcount" style="font-size:13px; opacity:.85"></span>
+    <button onclick="dlLog('json')" title="Download answer log as JSON">Log JSON</button>
+    <button onclick="dlLog('csv')" title="Download answer log as CSV">Log CSV</button>
+    <button onclick="clearLog()" title="Erase the stored log">Clear</button>
+  </span>
+</header>
+<main>
+
+<section id="tab-home" class="card">
+  <h2>Practice the three gamified formats</h2>
+  <p class="small">Original practice items in the style of common gamified cognitive assessments
+  (deductive-logic "switch" puzzles, timed mental-arithmetic digit puzzles, and dual-task
+  memory grids). Difficulty ramps up as you build a streak, so it should feel hard the whole
+  way through: in adaptive tests, that feeling means you are doing well.</p>
+  <p class="small"><b>Switch</b>: work out the position code that transforms the top row into the bottom row.
+  The code reads left to right: each digit tells you which TOP position the BOTTOM symbol came from.</p>
+  <p class="small"><b>Digit</b>: fill the blanks so the equation is true. Each digit 1-9 can be used once per
+  equation, including the digits already shown. <b>Adjacent cells joined by an underline form one multi-digit
+  number</b> (tens then units): "2&thinsp;4" reads as twenty-four, and two joined empty cells are one two-digit
+  number you fill digit by digit. The real test uses the same convention. The clock is short on purpose.</p>
+  <p class="small"><b>Grid</b>: memorize highlighted cells in order while solving symmetry and rotation
+  questions in between, then click the memorized cells back in order.</p>
+  <p class="small">Tip: practice each game until the <i>mechanics</i> feel boring. That is the goal;
+  the real test's content will differ, but the formats will feel familiar.</p>
+</section>
+
+<section id="tab-switch" class="card hidden">
+  <h2>Switch Challenge</h2>
+  <div class="statusbar"><span>Round <b class="s-round">1</b></span><span>Score <b class="s-score">0</b></span><span>Level <b class="s-level">1</b></span></div>
+  <div class="timerwrap"><div class="timerbar" id="switch-timer"></div></div>
+  <div id="switch-play" class="hidden">
+    <div class="symrow" id="switch-top"></div>
+    <div class="arrowdown">&darr; which code maps top to bottom? &darr;</div>
+    <div class="symrow" id="switch-bottom"></div>
+    <div class="opts" id="switch-opts"></div>
+  </div>
+  <div class="feedback" id="switch-fb"></div>
+  <button class="go" id="switch-start">Start</button>
+</section>
+
+<section id="tab-digit" class="card hidden">
+  <h2>Digit Challenge</h2>
+  <div class="statusbar"><span>Round <b class="d-round">1</b></span><span>Score <b class="d-score">0</b></span><span>Level <b class="d-level">1</b></span></div>
+  <div class="timerwrap"><div class="timerbar" id="digit-timer"></div></div>
+  <div id="digit-play" class="hidden">
+    <div class="equation" id="digit-eq"></div>
+    <div class="digitpad" id="digit-pad"></div>
+  </div>
+  <div class="feedback" id="digit-fb"></div>
+  <button class="go" id="digit-start">Start</button>
+</section>
+
+<section id="tab-grid" class="card hidden">
+  <h2>Grid Challenge</h2>
+  <div class="statusbar"><span>Round <b class="g-round">1</b></span><span>Score <b class="g-score">0</b></span><span>Dots <b class="g-level">2</b></span></div>
+  <div id="grid-stage"></div>
+  <div class="feedback" id="grid-fb"></div>
+  <button class="go" id="grid-start">Start</button>
+</section>
+
+</main>
+<script>
+"use strict";
+// ---------- tabs ----------
+document.querySelectorAll("header button[data-tab]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("header button[data-tab]").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  document.querySelectorAll("main > section").forEach(s => s.classList.add("hidden"));
+  document.getElementById("tab-" + b.dataset.tab).classList.remove("hidden");
+});
+// ---------- answer log (localStorage + download) ----------
+const LOGKEY = "assessPracticeLog";
+let LOG = [];
+try { LOG = JSON.parse(localStorage.getItem(LOGKEY) || "[]"); } catch (e) { LOG = []; }
+function refreshLogCount() { document.getElementById("logcount").textContent = LOG.length + " answers logged"; }
+function logItem(o) {
+  o.ts = new Date().toISOString();
+  LOG.push(o);
+  try { localStorage.setItem(LOGKEY, JSON.stringify(LOG)); } catch (e) {}
+  refreshLogCount();
+}
+function dlLog(fmt) {
+  let data, mime, name;
+  if (fmt === "json") { data = JSON.stringify(LOG, null, 1); mime = "application/json"; name = "practice_log.json"; }
+  else {
+    const cols = ["ts","game","level","question","expected","given","correct","detail","ms"];
+    const esc = v => `"${String(v === undefined ? "" : v).replace(/"/g, '""')}"`;
+    data = cols.join(",") + "\n" + LOG.map(r => cols.map(c => esc(r[c])).join(",")).join("\n");
+    mime = "text/csv"; name = "practice_log.csv";
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([data], { type: mime }));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+function clearLog() { LOG = []; localStorage.removeItem(LOGKEY); refreshLogCount(); }
+refreshLogCount();
+
+const rint = n => Math.floor(Math.random() * n);
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = rint(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+// ---------- timer helper ----------
+function makeTimer(barEl, onExpire) {
+  let raf, end, dur;
+  return {
+    start(seconds) { dur = seconds * 1000; end = Date.now() + dur; cancelAnimationFrame(raf);
+      const tick = () => { const left = end - Date.now();
+        barEl.style.width = Math.max(0, left / dur * 100) + "%";
+        if (left <= 0) { onExpire(); return; } raf = requestAnimationFrame(tick); };
+      tick(); },
+    stop() { cancelAnimationFrame(raf); }
+  };
+}
+
+// ================= SWITCH =================
+const SYMS = ["■","●","▲","♥","✱","◆","☀","☽"];
+let sw = { round:0, score:0, level:1, answer:"", timer:null };
+sw.timer = makeTimer(document.getElementById("switch-timer"), () => switchAnswer(null));
+document.getElementById("switch-start").onclick = () => { sw = {...sw, round:0, score:0, level:1};
+  document.getElementById("switch-play").classList.remove("hidden");
+  document.getElementById("switch-start").textContent = "Restart"; switchRound(); };
+
+function switchRound() {
+  const n = sw.level >= 3 ? 4 : 3;
+  const syms = shuffle(SYMS).slice(0, n);
+  let perm = shuffle([...Array(n).keys()]);
+  if (perm.every((v, i) => v === i)) perm = perm.reverse();
+  sw.answer = perm.map(p => p + 1).join("");
+  const top = document.getElementById("switch-top"), bot = document.getElementById("switch-bottom");
+  top.innerHTML = syms.map(s => `<div class="slot">${s}</div>`).join("");
+  bot.innerHTML = perm.map(p => `<div class="slot">${syms[p]}</div>`).join("");
+  const opts = new Set([sw.answer]);
+  while (opts.size < 4) {
+    let d = shuffle([...Array(n).keys()]).map(p => p + 1).join("");
+    opts.add(d);
+  }
+  document.getElementById("switch-opts").innerHTML =
+    shuffle([...opts]).map(o => `<button onclick="switchAnswer('${o}')">${o}</button>`).join("");
+  document.getElementById("switch-fb").textContent = "";
+  sw.q = syms.join(" ") + " -> " + perm.map(p => syms[p]).join(" ");
+  sw.t0 = Date.now();
+  sw.timer.start(sw.level >= 2 ? 20 : 28);
+}
+function switchAnswer(code) {
+  sw.timer.stop(); sw.round++;
+  logItem({ game: "switch", level: sw.level, question: sw.q, expected: sw.answer,
+            given: code || "timeout", correct: code === sw.answer,
+            detail: code ? "" : "timeout", ms: Date.now() - sw.t0 });
+  const fb = document.getElementById("switch-fb");
+  if (code === sw.answer) { sw.score++; fb.textContent = "Correct"; fb.className = "feedback ok";
+    if (sw.score % 3 === 0) sw.level = Math.min(3, sw.level + 1);
+  } else { fb.textContent = (code ? "Wrong" : "Time up") + " - code was " + sw.answer; fb.className = "feedback bad";
+    sw.level = Math.max(1, sw.level - 1); }
+  document.querySelector(".s-round").textContent = sw.round + 1;
+  document.querySelector(".s-score").textContent = sw.score;
+  document.querySelector(".s-level").textContent = sw.level;
+  setTimeout(switchRound, 1100);
+}
+
+// ================= DIGIT =================
+let dg = { round:0, score:0, level:1, slots:[], used:new Set(), shown:new Set(), eq:null, timer:null };
+dg.timer = makeTimer(document.getElementById("digit-timer"),
+  () => digitResolve(false, "Time up", "timeout"));
+document.getElementById("digit-start").onclick = () => { dg = {...dg, round:0, score:0, level:1};
+  document.getElementById("digit-play").classList.remove("hidden");
+  document.getElementById("digit-start").textContent = "Restart"; digitRound(); };
+
+function digitGen() {
+  // build an equation from real digits so a solution always exists;
+  // all digits in the equation are distinct (1-9, no zero)
+  for (let guard = 0; guard < 500; guard++) {
+    let a, b, c, text, blanks;
+    if (dg.level === 1) { a = 1 + rint(9); b = 1 + rint(9); c = a + b;
+      if (c > 9) continue; text = [a, "+", b, "=", c]; blanks = [0, 2];
+    } else if (dg.level === 2) { a = 12 + rint(77); b = 1 + rint(9); c = a + b;
+      const dA = [Math.floor(a / 10), a % 10];
+      if (c > 99) continue;
+      const dC = [Math.floor(c / 10), c % 10];
+      text = [dA[0], dA[1], "+", b, "=", dC[0], dC[1]]; blanks = [0, 1, 3];
+    } else { a = 2 + rint(8); b = 2 + rint(8); c = a * b;
+      if (c > 89 || c < 12) continue;
+      const dC = [Math.floor(c / 10), c % 10];
+      text = [a, "×", b, "=", dC[0], dC[1]]; blanks = [0, 2];
+    }
+    const digitsInEq = text.filter(t => typeof t === "number");
+    if (digitsInEq.includes(0)) continue;
+    if (new Set(digitsInEq).size !== digitsInEq.length) continue;
+    return { text, blanks };
+  }
+  dg.level = 1; return digitGen();
+}
+function digitRound() {
+  dg.eq = digitGen(); dg.used = new Set(); dg.slots = [];
+  const eqEl = document.getElementById("digit-eq");
+  // group consecutive digit cells: adjacent cells form ONE multi-digit number
+  let html = "", group = [];
+  const flush = () => { if (group.length) { html += `<div class="numgroup">${group.join("")}</div>`; group = []; } };
+  dg.eq.text.forEach((t, i) => {
+    if (typeof t === "number") {
+      group.push(dg.eq.blanks.includes(i)
+        ? `<div class="dslot" data-i="${i}"></div>` : `<div class="dslot filled" style="border-style:none">${t}</div>`);
+    } else { flush(); html += `<span>${t}</span>`; }
+  });
+  flush();
+  eqEl.innerHTML = html;
+  markCurrent();
+  const pad = document.getElementById("digit-pad");
+  pad.innerHTML = [1,2,3,4,5,6,7,8,9].map(d =>
+    `<button id="dp${d}" onclick="digitPick(${d})">${d}</button>`).join("") +
+    `<button class="util" onclick="digitClear()">Clear</button>`;
+  // digits already visible in the equation may not be reused: disable them
+  dg.shown = new Set(dg.eq.text.filter((t, i) =>
+    typeof t === "number" && !dg.eq.blanks.includes(i)));
+  dg.shown.forEach(d => { document.getElementById("dp" + d).disabled = true; });
+  document.getElementById("digit-fb").textContent = "";
+  dg.q = dg.eq.text.map((t, i) => dg.eq.blanks.includes(i) ? "_" : t).join("");
+  dg.sol = dg.eq.blanks.map(i => dg.eq.text[i]).join("");
+  dg.t0 = Date.now();
+  dg.timer.start(dg.level === 1 ? 12 : dg.level === 2 ? 15 : 14);
+}
+function markCurrent() {
+  const empt = [...document.querySelectorAll("#digit-eq .dslot")].find(s => !s.textContent);
+  document.querySelectorAll("#digit-eq .dslot").forEach(s => s.classList.remove("cur"));
+  if (empt) empt.classList.add("cur");
+}
+function digitPick(d) {
+  if (dg.used.has(d)) return;
+  const slot = [...document.querySelectorAll("#digit-eq .dslot")].find(s => !s.textContent);
+  if (!slot) return;
+  slot.textContent = d; slot.classList.add("filled");
+  dg.used.add(d); document.getElementById("dp" + d).disabled = true;
+  markCurrent();
+  const slots = [...document.querySelectorAll("#digit-eq .dslot")];
+  if (slots.every(s => s.textContent)) {
+    // evaluate, distinguishing WHY an answer fails
+    const vals = dg.eq.text.slice();
+    slots.forEach(s => vals[+s.dataset.i] = +s.textContent);
+    const allDigits = vals.filter(v => typeof v === "number");
+    let ok, detail;
+    if (new Set(allDigits).size !== allDigits.length) {
+      ok = false; detail = "repeated digit";
+    } else {
+      const [lhs, rhs] = vals.join("").split("=");
+      ok = evalSide(lhs) === evalSide(rhs);
+      detail = ok ? "ok" : "arithmetic";
+    }
+    digitResolve(ok, ok ? "Correct"
+      : detail === "repeated digit" ? "Wrong: a digit is used twice (each digit only once, including the shown ones)"
+      : "Wrong: the arithmetic doesn't hold", detail);
+  }
+}
+function evalSide(s) {
+  s = s.replace(/×/g, "*");
+  if (!/^[0-9+*\-]+$/.test(s)) return NaN;
+  return Function('"use strict";return (' + s + ')')();
+}
+function digitClear() {
+  document.querySelectorAll("#digit-eq .dslot").forEach(s => {
+    if (s.dataset.i !== undefined) { s.textContent = ""; s.classList.remove("filled"); } });
+  dg.used.clear();
+  document.querySelectorAll("#digit-pad button").forEach(b => b.disabled = false);
+  dg.shown.forEach(d => { const b = document.getElementById("dp" + d); if (b) b.disabled = true; });
+  markCurrent();
+}
+function digitResolve(ok, msg, detail) {
+  dg.timer.stop(); dg.round++;
+  const given = [...document.querySelectorAll("#digit-eq .dslot")]
+    .filter(s => s.dataset.i !== undefined).map(s => s.textContent || "_").join("");
+  logItem({ game: "digit", level: dg.level, question: dg.q, expected: dg.sol,
+            given, correct: !!ok, detail: detail || "", ms: Date.now() - dg.t0 });
+  const fb = document.getElementById("digit-fb");
+  fb.textContent = msg; fb.className = "feedback " + (ok ? "ok" : "bad");
+  if (ok) { dg.score++; if (dg.score % 3 === 0) dg.level = Math.min(3, dg.level + 1); }
+  else dg.level = Math.max(1, dg.level - 1);
+  document.querySelector(".d-round").textContent = dg.round + 1;
+  document.querySelector(".d-score").textContent = dg.score;
+  document.querySelector(".d-level").textContent = dg.level;
+  setTimeout(digitRound, 1100);
+}
+
+// ================= GRID =================
+let gr = { round:0, score:0, dots:2, seq:[], stagePos:0 };
+document.getElementById("grid-start").onclick = () => { gr = { round:0, score:0, dots:2, seq:[], stagePos:0 };
+  document.getElementById("grid-start").textContent = "Restart"; gridRound(); };
+
+function gridRound() {
+  gr.seq = []; gr.stagePos = 0;
+  const cells = new Set();
+  while (cells.size < gr.dots) cells.add(rint(16));
+  gr.seq = [...cells];
+  document.getElementById("grid-fb").textContent = "";
+  gridShowDot(0);
+}
+function gridShowDot(i) {
+  const stage = document.getElementById("grid-stage");
+  stage.innerHTML = `<p class="small" style="text-align:center">Memorize position ${i + 1} of ${gr.dots}</p>` + gridHtml(gr.seq[i]);
+  setTimeout(() => { i + 1 < gr.dots ? gridDistractor(() => gridShowDot(i + 1)) : gridDistractor(gridRecall); }, 1300);
+}
+function gridHtml(dotIdx, clickable) {
+  let h = `<div class="ggrid" style="grid-template-columns:repeat(4,56px)">`;
+  for (let i = 0; i < 16; i++)
+    h += `<div class="gcell ${i === dotIdx ? "dot" : ""}" ${clickable ? `onclick="gridPick(${i},this)"` : ""}></div>`;
+  return h + "</div>";
+}
+function gridDistractor(next) {
+  const stage = document.getElementById("grid-stage");
+  const symmetric = Math.random() < 0.5;
+  // build 5x4 half, mirror it, optionally break symmetry
+  const left = [...Array(10)].map(() => Math.random() < 0.45);
+  let full = [];
+  for (let r = 0; r < 5; r++) {
+    const row = [left[r * 2], left[r * 2 + 1]];
+    full.push([...row, ...row.slice().reverse()]);
+  }
+  if (!symmetric) { const r = rint(5), c = rint(4); full[r][c] = !full[r][c]; }
+  let h = `<p class="small" style="text-align:center">Is this pattern symmetric about the vertical axis?</p><div class="minigrids"><div class="mgrid" style="grid-template-columns:repeat(4,34px)">`;
+  full.flat().forEach(on => h += `<div class="mcell ${on ? "on" : ""}"></div>`);
+  h += `</div></div><div class="yn">
+    <button onclick="gridYN(${symmetric},true)">Yes</button>
+    <button onclick="gridYN(${symmetric},false)">No</button></div>`;
+  stage.innerHTML = h;
+  const shown = Date.now();
+  window.gridYN = (truth, said) => {
+    logItem({ game: "grid-symmetry", level: gr.dots, question: "pattern symmetric?",
+              expected: truth, given: said, correct: truth === said,
+              detail: "", ms: Date.now() - shown });
+    if (truth === said) gr.score++;
+    document.querySelector(".g-score").textContent = gr.score;
+    next();
+  };
+}
+function gridRecall() {
+  gr.picked = [];
+  const stage = document.getElementById("grid-stage");
+  stage.innerHTML = `<p class="small" style="text-align:center">Click the memorized cells in order (${gr.dots})</p>` + gridHtml(-1, true);
+}
+function gridPick(i, el) {
+  el.classList.add("picked");
+  gr.picked.push(i);
+  if (gr.picked.length === gr.seq.length) {
+    const ok = gr.picked.every((v, k) => v === gr.seq[k]);
+    gr.round++;
+    logItem({ game: "grid-recall", level: gr.dots, question: "recall sequence",
+              expected: gr.seq.map(x => x + 1).join("-"),
+              given: gr.picked.map(x => x + 1).join("-"),
+              correct: ok, detail: "", ms: 0 });
+    const fb = document.getElementById("grid-fb");
+    fb.textContent = ok ? "Correct sequence" : "Wrong - sequence was positions " + gr.seq.map(x => x + 1).join(", ");
+    fb.className = "feedback " + (ok ? "ok" : "bad");
+    if (ok) { gr.score += 2; gr.dots = Math.min(5, gr.dots + (gr.round % 2 === 0 ? 1 : 0)); }
+    else gr.dots = Math.max(2, gr.dots - 1);
+    document.querySelector(".g-round").textContent = gr.round + 1;
+    document.querySelector(".g-score").textContent = gr.score;
+    document.querySelector(".g-level").textContent = gr.dots;
+    document.getElementById("grid-stage").innerHTML = "";
+    setTimeout(gridRound, 1600);
+  }
+}
+</script>
+</body>
+</html>
