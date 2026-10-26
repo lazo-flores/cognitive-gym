@@ -1,4 +1,4 @@
-:root { --blue:#006EBE; --dark:#2b2b2b; --bg:#f0f4f6; --ok:#1a9e5c; --bad:#d94040; --gray:#9aa5a5; }
+:root { --mcell:32px; --blue:#006EBE; --dark:#2b2b2b; --bg:#f0f4f6; --ok:#1a9e5c; --bad:#d94040; --gray:#9aa5a5; }
 * { box-sizing:border-box; margin:0; padding:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }
 body { background:var(--bg); color:var(--dark); min-height:100vh; }
 header { background:var(--blue); color:#fff; padding:14px 24px; display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
@@ -31,7 +31,9 @@ select { padding:8px 10px; border-radius:8px; border:1.5px solid var(--gray); fo
 .feedback.ok { color:var(--ok); } .feedback.bad { color:var(--bad); }
 /* switch */
 .symrow { display:flex; gap:12px; justify-content:center; font-size:36px; margin:6px 0; }
-.symrow .slot { width:56px; height:56px; display:flex; align-items:center; justify-content:center; background:#f4f7f9; border-radius:10px; }
+.symrow .slot { width:56px; height:56px; display:flex; align-items:center; justify-content:center; background:#f4f7f9; border-radius:10px;
+  font-family:"Apple Symbols","Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",system-ui,sans-serif;
+  font-variant-emoji:text; }
 .codebetween { text-align:center; font-size:17px; color:#555; margin:2px 0; letter-spacing:3px; }
 .codebetween b { color:var(--blue); font-size:19px; }
 .codebetween .unknown { color:var(--bad); font-weight:700; font-size:20px; }
@@ -58,7 +60,7 @@ select { padding:8px 10px; border-radius:8px; border:1.5px solid var(--gray); fo
 .digitpad button:disabled { opacity:.25; cursor:default; }
 .digitpad button.util { width:auto; padding:0 14px; font-size:14px; }
 /* memory */
-.canvas { position:relative; height:360px; background:#fff; border:1.5px solid #dde5ea; border-radius:12px; margin:8px 0; }
+.canvas { position:relative; height:360px; overflow:hidden; background:#fff; border:1.5px solid #dde5ea; border-radius:12px; margin:8px 0; }
 .dot { position:absolute; width:44px; height:44px; border-radius:50%; transform:translate(-50%,-50%); }
 .dot.show { background:var(--blue); }
 .dot.empty { background:#fff; border:2.5px solid #dde5ea; }
@@ -67,7 +69,7 @@ select { padding:8px 10px; border-radius:8px; border:1.5px solid var(--gray); fo
 .dot.picked { background:#bcd8ef; border-color:var(--blue); color:var(--blue); font-weight:700; display:flex; align-items:center; justify-content:center; }
 .minigrids { display:flex; gap:30px; justify-content:center; align-items:center; flex-wrap:wrap; margin-top:10px; }
 .mgrid { display:grid; gap:4px; }
-.mcell { width:32px; height:32px; background:#e8eef3; border-radius:5px; }
+.mcell { width:var(--mcell); height:var(--mcell); background:#e8eef3; border-radius:5px; }
 .mcell.on { background:var(--dark); }
 .yn { display:flex; gap:14px; justify-content:center; margin-top:16px; }
 .yn button { font-size:16px; padding:11px 30px; border:2px solid var(--blue); border-radius:10px; background:#fff; color:var(--blue); cursor:pointer; }
@@ -80,3 +82,18 @@ table.report th { color:var(--blue); }
 .bigscore { font-size:42px; font-weight:800; color:var(--blue); }
 /* pause overlay */
 #pause { position:fixed; inset:0; background:rgba(20,40,60,.82); color:#fff; display:flex; flex-direction:column; gap:12px; align-items:center; justify-content:center; z-index:50; font-size:22px; cursor:pointer; }
+
+/* narrow viewports: the symbol rows and equations are sized in px, so scale
+   them down rather than letting a row overflow the card */
+@media (max-width:560px) {
+  main { margin:14px auto; }
+  .card { padding:16px; }
+  .symrow { gap:7px; font-size:27px; }
+  .symrow .slot { width:42px; height:42px; }
+  .equation { gap:9px; font-size:27px; }
+  .dslot { width:40px; height:40px; }
+  .digitpad button { width:42px; height:42px; font-size:18px; }
+  :root { --mcell:26px; }
+  .minigrids { gap:16px; }
+  .statusbar { gap:12px; font-size:14px; flex-wrap:wrap; }
+}

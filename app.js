@@ -10,13 +10,21 @@ const pad2 = n => String(n).padStart(2, "0");
 
 // ------------------------------------------------------------------ logger
 const LOGKEY = "cognitiveGymLog";
+/* localStorage is not always reachable: file:// pages in some browsers, private
+ * windows, and embedded webviews throw on access rather than returning null.
+ * The log is a convenience, so every call degrades to a no-op instead. */
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+};
 let LOG = [];
-try { LOG = JSON.parse(localStorage.getItem(LOGKEY) || "[]"); } catch (e) { LOG = []; }
+try { LOG = JSON.parse(store.get(LOGKEY) || "[]"); } catch (e) { LOG = []; }
 function refreshLogCount() { $("logcount").textContent = LOG.length + " answers logged"; }
 function logItem(o) {
   o.ts = new Date().toISOString();
   LOG.push(o);
-  try { localStorage.setItem(LOGKEY, JSON.stringify(LOG)); } catch (e) {}
+  store.set(LOGKEY, JSON.stringify(LOG));
   refreshLogCount();
 }
 function dlLog(fmt) {
@@ -28,13 +36,18 @@ function dlLog(fmt) {
     data = cols.join(",") + "\n" + LOG.map(r => cols.map(c => esc(r[c])).join(",")).join("\n");
     mime = "text/csv"; name = "cognitive_gym_log.csv";
   }
+  const url = URL.createObjectURL(new Blob([data], { type: mime }));
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([data], { type: mime }));
-  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);   // Firefox ignores clicks on a detached anchor
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);   // revoking at once aborts the save in Safari
 }
 $("btn-log-json").onclick = () => dlLog("json");
 $("btn-log-csv").onclick = () => dlLog("csv");
-$("btn-log-clear").onclick = () => { LOG = []; localStorage.removeItem(LOGKEY); refreshLogCount(); };
+$("btn-log-clear").onclick = () => { LOG = []; store.del(LOGKEY); refreshLogCount(); };
 refreshLogCount();
 
 // ------------------------------------------------------------------ clock
@@ -165,7 +178,12 @@ document.addEventListener("visibilitychange", () => {
 $("pause").onclick = () => { $("pause").classList.add("hidden"); if (RUNNER) RUNNER.resume(); };
 
 // ================================================================== SWITCH
-const SYMS = ["■", "●", "▲", "♥", "✚", "◆", "☀", "★"];
+/* Every glyph here is carried by the stock symbol fonts on Windows, macOS and
+ * Linux. U+2600 (sun) used to be in this set and was dropped: it is missing
+ * from several Linux default faces, where it rendered as an empty box and made
+ * the puzzle unreadable. The slots also ask for text presentation in CSS, so
+ * the browser does not substitute a colour emoji for the heart. */
+const SYMS = ["■", "●", "▲", "▼", "♥", "✚", "◆", "★"];
 const applyCode = (row, code) => code.map(p => row[p - 1]);
 function randCode(n) {
   let p = shuffle([...Array(n).keys()]).map(x => x + 1);
@@ -310,8 +328,26 @@ function evalTokens(tokens) {
   const s = tokens.join("").replace(/×/g, "*").replace(/÷/g, "/").replace(/−/g, "-");
   const [lhs, rhs] = s.split("=");
   if (!/^[0-9+*/\-]+$/.test(lhs) || !/^[0-9]+$/.test(rhs)) return false;
-  const v = Function('"use strict";return (' + lhs + ')')();
+  const v = evalExpr(lhs);
   return Number.isFinite(v) && Math.abs(v - Number(rhs)) < 1e-9;
+}
+function evalExpr(s) {
+  /* Evaluates the digits-and-+-*\/ expressions the templates produce, without
+   * Function()/eval, which a page served under a strict Content-Security-Policy
+   * is not allowed to call. No parentheses or unary minus occur, so one pass
+   * folding * and / and a second folding + and - is enough. */
+  const toks = s.match(/\d+|[+*/-]/g);
+  if (!toks || toks.length % 2 === 0) return NaN;
+  const terms = [Number(toks[0])];
+  const ops = [];
+  for (let i = 1; i < toks.length; i += 2) {
+    const op = toks[i], v = Number(toks[i + 1]);
+    if (!Number.isFinite(v)) return NaN;
+    if (op === "*") terms[terms.length - 1] *= v;
+    else if (op === "/") terms[terms.length - 1] /= v;
+    else { ops.push(op); terms.push(v); }
+  }
+  return terms.reduce((a, t, i) => i === 0 ? t : (ops[i - 1] === "+" ? a + t : a - t));
 }
 function genDigit(level) {
   const templates = digitTemplates(level);
@@ -413,21 +449,34 @@ const DigitGame = {
 };
 
 // ================================================================== MEMORY
+const randPoint = (w, h) => ({ x: 40 + rint(Math.max(1, w - 80)),
+                               y: 40 + rint(Math.max(1, h - 80)) });
 function memoryPositions(n, w, h, minDist) {
-  const pts = [];
-  let guard = 0;
-  while (pts.length < n && guard++ < 4000) {
-    const p = { x: 40 + rint(w - 80), y: 40 + rint(h - 80) };
-    if (pts.every(q => Math.hypot(p.x - q.x, p.y - q.y) >= minDist)) pts.push(p);
+  /* Relax the spacing until n circles actually fit. A narrow viewport (phone,
+   * split screen) cannot hold 7 of them 85px apart, and returning fewer points
+   * than asked would leave the recall step impossible to complete. */
+  for (let d = minDist; d >= 48; d -= 8) {
+    const pts = [];
+    let guard = 0;
+    while (pts.length < n && guard++ < 3000) {
+      const p = randPoint(w, h);
+      if (pts.every(q => Math.hypot(p.x - q.x, p.y - q.y) >= d)) pts.push(p);
+    }
+    if (pts.length === n) return pts;
   }
-  return pts;
+  const cols = Math.max(1, Math.floor((w - 72) / 56));   // fallback: a plain grid
+  return [...Array(n)].map((_, i) => ({
+    x: 36 + (i % cols) * 56,
+    y: Math.min(Math.max(36, h - 36), 36 + Math.floor(i / cols) * 56),
+  }));
 }
 function patternGrid(rows, cols, fill = 0.45) {
   return [...Array(rows)].map(() => [...Array(cols)].map(() => Math.random() < fill));
 }
 const rot90 = g => g[0].map((_, c) => g.map(r => r[c]).reverse());
 function gridHtml(g, cellCls = "mcell") {
-  return `<div class="mgrid" style="grid-template-columns:repeat(${g[0].length},32px)">` +
+  // column count inline, column WIDTH from --mcell so the mobile rules can shrink it
+  return `<div class="mgrid" style="grid-template-columns:repeat(${g[0].length},var(--mcell))">` +
     g.flat().map(on => `<div class="${cellCls} ${on ? "on" : ""}"></div>`).join("") + `</div>`;
 }
 
@@ -443,7 +492,7 @@ const MemoryGame = {
       const d = [];
       let guard = 0;
       while (d.length < dots && guard++ < 4000) {
-        const p = { x: 40 + rint(W - 80), y: 40 + rint(H - 80) };
+        const p = randPoint(W, H);
         if (all.concat(d).every(q => Math.hypot(p.x - q.x, p.y - q.y) >= 70)) d.push(p);
       }
       return d;
